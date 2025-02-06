@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  frontend:
+    container_name: frontend-container
+    build:
+      context: ./frontend  # Path to your frontend code
+    ports:
+      - "3001:3000"  # Expose frontend on port 3001
+    environment:
+      - REACT_APP_API_URL=http://backend-container:5003/api  # Use localhost for browser access
+    depends_on:
+      - backend
+    networks:
+      - mern-network
+    restart: always
+
+  backend:
+    container_name: backend-container
+    build:
+      context: ./backend  # Path to your backend code
+    ports:
+      - "5003:5003"  # Expose backend on port 5003
+    environment:
+      - MONGO_URL=mongodb://mongo-container:27017/test2  # Use internal Docker hostname for MongoDB
+      - JWT_SECRET=2342314  # JWT secret for backend authentication
+      - PORT=5003
+    depends_on:
+      - mongo
+    networks:
+      - mern-network
+    restart: always
+
+  mongo:
+    image: mongo
+    container_name: mongo-container
+    environment:
+      - MONGO_INITDB_DATABASE=test2  # Database name
+    ports:
+      - "27017:27017"  # Expose MongoDB on port 27017
+    volumes:
+      - mongo-data:/data/db  # Persist MongoDB data
+    networks:
+      - mern-network
+    restart: always
+
+volumes:
+  mongo-data:  # Persistent volume for MongoDB data
+
+networks:
+  mern-network:
+    driver: bridge

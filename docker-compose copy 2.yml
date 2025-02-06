@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend  # path to your frontend code
+    ports:
+      - "3001:3000"  # Expose frontend on port 3001
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL}  # Use dynamic IP from .env
+    depends_on:
+      - backend
+    networks:
+      - mern-network
+
+  backend:
+    build:
+      context: ./backend  # path to your backend code
+    ports:
+      - "5003:5003"  # Expose backend on port 5003
+    environment:
+      - MONGO_URL=${MONGO_URL}  # Use dynamic IP from .env
+      - JWT_SECRET=2342314  # JWT secret for backend authentication
+    depends_on:
+      - mongo
+    networks:
+      - mern-network
+
+  mongo:
+    image: mongo
+    container_name: mongo-container
+    environment:
+      - MONGO_INITDB_DATABASE=test2  # Database name
+    ports:
+      - "27017:27017"  # Expose MongoDB on port 27017
+    volumes:
+      - mongo-data:/data/db  # Persist MongoDB data
+    networks:
+      - mern-network
+
+volumes:
+  mongo-data:  # Create a persistent volume for MongoDB data
+
+networks:
+  mern-network:
+    driver: bridge

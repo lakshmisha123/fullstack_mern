@@ -1,0 +1,95 @@
+name: Docker Build & Deploy on EC2
+
+on:
+  # push:
+  #   branches:
+  #     - main
+  workflow_dispatch:  # Allows you to manually trigger the workflow from the GitHub Actions UI
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Use Ubuntu environment for the GitHub runner
+
+    steps:
+      # Set up SSH key for EC2 access
+      - name: Set up SSH key for EC2 access
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOST_DNS }}  # EC2 public DNS or IP address
+          username: ${{ secrets.USERNAME }}  # SSH username for your EC2 instance (ec2-user, ubuntu, etc.)
+          key: ${{ secrets.EC2_SSH_KEY }}  # SSH private key to authenticate to EC2
+          port: 22  # Default SSH port is 22
+          script: |
+            # Export the PUBLIC_IP_HOST_MACHINE as an environment variable on the EC2 instance
+            echo "PUBLIC_IP_HOST_MACHINE=$(curl -s ifconfig.me)" | sudo tee -a /etc/environment > /dev/null
+            echo "PUBLIC_IP_HOST_MACHINE is set to: $PUBLIC_IP_HOST_MACHINE"
+
+
+            # Persist environment variables by appending them to ~/.bashrc
+            # echo "export PUBLIC_IP_HOST_MACHINE=${PUBLIC_IP_HOST_MACHINE}" >> ~/.bashrc
+            source /etc/profile
+
+            
+            # Update EC2 instance
+            sudo apt-get update -y
+            sudo apt-get upgrade -y
+
+            # Install Docker if not already installed
+            if ! command -v docker &> /dev/null; then
+              echo "Docker not found, installing Docker.."
+              sudo apt-get install -y docker.io
+            else
+              echo "Docker is already installed"
+            fi
+
+            # Install Docker Compose if not already installed
+            if ! command -v docker-compose &> /dev/null; then
+              echo "Docker Compose not found, installing Docker Compose..."
+              sudo curl -L "https://github.com/docker/compose/releases/download/$(curl -s https://api.github.com/repos/docker/compose/releases/latest | jq -r .tag_name)/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+            else
+              echo "Docker Compose is already installed"
+            fi
+
+            # Stop and remove all running containers before creating new ones
+            echo "Stopping and removing all containers..."
+            sudo docker stop $(sudo docker ps -aq)  # Stop all running containers
+            sudo docker rm $(sudo docker ps -aq)    # Remove all containers (running or stopped)
+
+            # Optionally, remove all unused Docker images and volumes (if you want to free up space)
+            # sudo docker system prune -af
+
+            # Debug: Print the repository name
+            echo "GITHUB_REPOSITORY: $GITHUB_REPOSITORY"  # This will print the full name of the repo
+            # REPO_NAME="${{ secrets.TARGET_DIR }}/$(basename $GITHUB_REPOSITORY)"
+            REPO_NAME=$(echo ${{ github.repository }} | cut -d'/' -f2)
+
+
+            # Check if REPO_NAME has been set correctly
+            echo "Resolved REPO_NAME: $REPO_NAME"
+
+            # Check if the directory exists
+            if [ ! -d "$REPO_NAME" ]; then
+              echo "Repository not found, cloning..."
+              git clone https://github.com/${{ github.repository }}  # Clone the repo (if it doesn't exist)
+              cd $REPO_NAME  # Change to the cloned repo directory
+            else
+              echo "Repository already exists, pulling latest changes..."
+              cd $REPO_NAME  # Change to the existing repo directory
+              git pull origin main  # Pull the latest changes
+            fi
+
+            # Ensure docker-compose.yml is present
+            if [ ! -f "./docker-compose.yml" ]; then
+              echo "docker-compose.yml file not found!"
+              exit 1  # Exit the script with an error if docker-compose.yml is not found
+            fi
+
+            # Set up Docker Compose and Build Services
+            sudo docker-compose -f docker-compose.yml up -d --build  # Build and run containers
+
+            echo "Waiting for services to start..."
+            sleep 30  # Adjust this sleep time based on your containers' startup time
+
+            # Verify if containers are running
+            sudo docker ps
