@@ -1,13 +1,17 @@
-name: Docker Build & Deploy on EC2
+name: CD ON EC2
 
 on:
   # push:
   #   branches:
   #     - main
   workflow_dispatch:  # Allows you to manually trigger the workflow from the GitHub Actions UI
+  workflow_run:
+    workflows: ["CI"]  # This runs only after `build.yml`
+    types:
+      - completed
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest  # Use Ubuntu environment for the GitHub runner
 
     steps:
@@ -21,14 +25,13 @@ jobs:
           port: 22  # Default SSH port is 22
           script: |
             # Export the PUBLIC_IP_HOST_MACHINE as an environment variable on the EC2 instance
-            echo "PUBLIC_IP_HOST_MACHINE=$(curl -s ifconfig.me)" | sudo tee -a /etc/environment > /dev/null
+            echo "PUBLIC_IP_HOST_MACHINE=$(curl -s http://checkip.amazonaws.com)" | sudo tee -a /etc/environment > /dev/null
             echo "PUBLIC_IP_HOST_MACHINE is set to: $PUBLIC_IP_HOST_MACHINE"
 
 
             # Persist environment variables by appending them to ~/.bashrc
             # echo "export PUBLIC_IP_HOST_MACHINE=${PUBLIC_IP_HOST_MACHINE}" >> ~/.bashrc
             source /etc/profile
-
             
             # Update EC2 instance
             sudo apt-get update -y

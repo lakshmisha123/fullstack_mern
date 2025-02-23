@@ -1,4 +1,4 @@
-name: Docker Build & Deploy
+name: CI 
 
 on:
   workflow_dispatch:  # Allows you to manually trigger the workflow from the GitHub Actions UI
@@ -48,9 +48,3 @@ jobs:
       - name: Stop Docker Compose services
         run: |
           docker-compose down
-
-      # (Optional) Deploy your app, push Docker image, etc. If you're deploying to a service, add the steps here.
-      # Example:
-      # - name: Deploy to AWS ECS (as an example)
-      #   run: |
-      #     aws ecs update-service --cluster my-cluster --service my-service --force-new-deployment

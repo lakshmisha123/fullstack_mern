@@ -40,7 +40,7 @@ def generate_nginx_config(domain, port):
     return config
 
 def save_nginx_config(config, domain):
-    file_path = f"/etc/nginx/sites-available/{domain}"
+    file_path = f"/etc/nginx/sites-available/{domain}.conf"
     try:
         with open(file_path, 'w') as file:
             file.write(config)
@@ -88,7 +88,8 @@ def main():
 
     # Optionally create a symbolic link to enable the site
     try:
-        os.symlink(f"/etc/nginx/sites-available/{domain}", f"/etc/nginx/sites-enabled/{domain}")
+        os.symlink(f"/etc/nginx/sites-available/{domain}.conf", 
+                   f"/etc/nginx/sites-enabled/{domain}.conf")
         print(f"Site {domain} enabled.")
     except FileExistsError:
         print(f"Site {domain} is already enabled.")
