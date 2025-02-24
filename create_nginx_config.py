@@ -19,23 +19,23 @@ def generate_nginx_config(domain, port):
         }}
     }}
 
-    server {{
-        listen 443 ssl;
-        server_name {domain} {www_domain};
-        client_max_body_size 250m;
-        
+    # server {{
+    #     listen 443 ssl;
+    #     server_name {domain} {www_domain};
+    #     client_max_body_size 250m;
 
-        location / {{
-            proxy_set_header Host $http_host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_pass http://127.0.0.1:{port};
-        }}
+    #     ssl_certificate     /etc/letsencrypt/live/{domain}/fullchain.pem;
+    #     ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;
 
-        #ssl_certificate     /etc/letsencrypt/live/{domain}/fullchain.pem;
-        #ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;
-    }}
+    #     location / {{
+    #         include proxy_params;
+    #         proxy_set_header Host $http_host;
+    #         proxy_set_header X-Real-IP $remote_addr;
+    #         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #         proxy_set_header X-Forwarded-Proto $scheme;
+    #         proxy_pass http://127.0.0.1:{port};
+    #     }}
+    # }}
     """
     return config
 
@@ -46,24 +46,19 @@ def save_nginx_config(config, domain):
             file.write(config)
         print(f"Configuration saved to {file_path}.")
     except PermissionError:
-        print("Permission denied: You need sudo privileges to write to this directory.")
+        print("Permission denied: You need sudo privileges.")
+        sys.exit(1)
     except Exception as e:
-        print(f"An error occurred while saving config: {e}")
+        print(f"Error saving config: {e}")
+        sys.exit(1)
 
 def setup_ssl(domain):
-    # Set up SSL with Certbot (assuming Certbot is installed)
     try:
         print("Setting up SSL certificate with Certbot...")
-        
-        # Install certbot and dependencies
         subprocess.run(['sudo', 'apt', 'install', '-y', 'certbot', 'python3-certbot-nginx'], check=True)
-        
-        # Generate SSL certificate
         subprocess.run([
-            'sudo', 'certbot', 'certonly', '--standalone', '-d', domain, 
-            '--staple-ocsp', '-m', f'info@{domain}', '--agree-tos', '--noninteractive'
+            'sudo', 'certbot', '--nginx', '-d', domain, '-m', f'info@{domain}', '--agree-tos', '--noninteractive'
         ], check=True)
-
         print(f"SSL setup completed for {domain}.")
     except subprocess.CalledProcessError as e:
         print(f"Error during Certbot SSL setup: {e}")
@@ -72,39 +67,36 @@ def main():
     if len(sys.argv) != 3:
         print("Usage: python3 create_nginx_config.py <domain> <port>")
         sys.exit(1)
-    
-    domain = sys.argv[1]
-    port = sys.argv[2]
 
-    if not domain or not port:
-        print("Both domain and port must be provided.")
+    domain = sys.argv[1]
+    
+    try:
+        port = int(sys.argv[2])
+    except ValueError:
+        print("Port must be a valid number.")
         sys.exit(1)
 
-    # Generate the nginx configuration
     nginx_config = generate_nginx_config(domain, port)
-
-    # Save the config to the appropriate Nginx directory
     save_nginx_config(nginx_config, domain)
 
-    # Optionally create a symbolic link to enable the site
     try:
-        os.symlink(f"/etc/nginx/sites-available/{domain}.conf", 
-                   f"/etc/nginx/sites-enabled/{domain}.conf")
+        subprocess.run(['sudo', 'ln', '-sf', 
+                        f"/etc/nginx/sites-available/{domain}.conf", 
+                        f"/etc/nginx/sites-enabled/{domain}.conf"], check=True)
         print(f"Site {domain} enabled.")
-    except FileExistsError:
-        print(f"Site {domain} is already enabled.")
-    except Exception as e:
+    except subprocess.CalledProcessError as e:
         print(f"Error creating symbolic link: {e}")
+        sys.exit(1)
 
-    # Restart Nginx to apply changes
     try:
+        subprocess.run(['sudo', 'nginx', '-t'], check=True)
         subprocess.run(['sudo', 'systemctl', 'restart', 'nginx'], check=True)
         print("Nginx restarted successfully.")
     except subprocess.CalledProcessError as e:
-        print(f"Error restarting Nginx: {e}")
-    
-    # Set up SSL using Certbot
-    # setup_ssl(domain)
+        print(f"Nginx configuration error: {e}")
+        sys.exit(1)
+
+    #setup_ssl(domain)
 
 if __name__ == "__main__":
     main()
