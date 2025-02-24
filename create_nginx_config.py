@@ -10,37 +10,21 @@ def generate_nginx_config(domain, port):
         listen 80;
         client_max_body_size 250m;
         server_name {domain} {www_domain};
+        
         location ^~ /.well-known {{
             root /etc/nginx/ssl/bot;
         }}
+        
         location / {{
             include proxy_params;
-            return 301 https://$host$request_uri;
+            proxy_pass http://127.0.0.1:{port};
         }}
     }}
-
-    # server {{
-    #     listen 443 ssl;
-    #     server_name {domain} {www_domain};
-    #     client_max_body_size 250m;
-
-    #     ssl_certificate     /etc/letsencrypt/live/{domain}/fullchain.pem;
-    #     ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;
-
-    #     location / {{
-    #         include proxy_params;
-    #         proxy_set_header Host $http_host;
-    #         proxy_set_header X-Real-IP $remote_addr;
-    #         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    #         proxy_set_header X-Forwarded-Proto $scheme;
-    #         proxy_pass http://127.0.0.1:{port};
-    #     }}
-    # }}
     """
     return config
 
 def save_nginx_config(config, domain):
-    file_path = f"/etc/nginx/sites-available/{domain}.conf"
+    file_path = f"/etc/nginx/sites-available/{domain}"
     try:
         with open(file_path, 'w') as file:
             file.write(config)
@@ -52,16 +36,23 @@ def save_nginx_config(config, domain):
         print(f"Error saving config: {e}")
         sys.exit(1)
 
-def setup_ssl(domain):
+def enable_firewall():
+    """Allow only HTTP (port 80) through the firewall."""
     try:
-        print("Setting up SSL certificate with Certbot...")
-        subprocess.run(['sudo', 'apt', 'install', '-y', 'certbot', 'python3-certbot-nginx'], check=True)
-        subprocess.run([
-            'sudo', 'certbot', '--nginx', '-d', domain, '-m', f'info@{domain}', '--agree-tos', '--noninteractive'
-        ], check=True)
-        print(f"SSL setup completed for {domain}.")
+        subprocess.run(["sudo", "ufw", "allow", "80"], check=True)
+        print("Firewall updated: Allowed HTTP (80) only.")
     except subprocess.CalledProcessError as e:
-        print(f"Error during Certbot SSL setup: {e}")
+        print(f"Error configuring firewall: {e}")
+
+def remove_default_nginx():
+    """Remove the default Nginx configuration if it exists."""
+    default_site = "/etc/nginx/sites-enabled/default"
+    if os.path.exists(default_site):
+        try:
+            subprocess.run(["sudo", "rm", "-f", default_site], check=True)
+            print("Default Nginx configuration removed.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error removing default Nginx configuration: {e}")
 
 def main():
     if len(sys.argv) != 3:
@@ -80,23 +71,29 @@ def main():
     save_nginx_config(nginx_config, domain)
 
     try:
+        # Remove default configuration
+        remove_default_nginx()
+
+        # Create symlink for the new site
         subprocess.run(['sudo', 'ln', '-sf', 
-                        f"/etc/nginx/sites-available/{domain}.conf", 
-                        f"/etc/nginx/sites-enabled/{domain}.conf"], check=True)
+                        f"/etc/nginx/sites-available/{domain}", 
+                        f"/etc/nginx/sites-enabled/{domain}"], check=True)
         print(f"Site {domain} enabled.")
     except subprocess.CalledProcessError as e:
-        print(f"Error creating symbolic link: {e}")
+        print(f"Error enabling site: {e}")
         sys.exit(1)
 
     try:
+        # Reload firewall rules
+        enable_firewall()
+
+        # Test Nginx configuration before restarting
         subprocess.run(['sudo', 'nginx', '-t'], check=True)
         subprocess.run(['sudo', 'systemctl', 'restart', 'nginx'], check=True)
         print("Nginx restarted successfully.")
     except subprocess.CalledProcessError as e:
         print(f"Nginx configuration error: {e}")
         sys.exit(1)
-
-    #setup_ssl(domain)
 
 if __name__ == "__main__":
     main()
