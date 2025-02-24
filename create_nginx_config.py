@@ -54,6 +54,38 @@ def remove_default_nginx():
         except subprocess.CalledProcessError as e:
             print(f"Error removing default Nginx configuration: {e}")
 
+def stop_container_on_port(port):
+    """Stops the Docker container running on the given port, if any."""
+    try:
+        # Find container using the given port
+        result = subprocess.run(
+            f"sudo docker ps --format '{{{{.ID}}}}' --filter 'publish={port}'",
+            shell=True, capture_output=True, text=True, check=True
+        )
+        container_id = result.stdout.strip()
+
+        if container_id:
+            print(f"Stopping container {container_id} running on port {port}...")
+            subprocess.run(["sudo", "docker", "stop", container_id], check=True)
+            print(f"Container {container_id} stopped.")
+            return container_id
+        else:
+            print(f"No container found running on port {port}.")
+            return None
+    except subprocess.CalledProcessError as e:
+        print(f"Error stopping container: {e}")
+        return None
+
+def restart_container(container_id):
+    """Restarts the Docker container after Nginx setup."""
+    if container_id:
+        try:
+            print(f"Restarting container {container_id}...")
+            subprocess.run(["sudo", "docker", "start", container_id], check=True)
+            print(f"Container {container_id} restarted.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error restarting container: {e}")
+
 def main():
     if len(sys.argv) != 3:
         print("Usage: python3 create_nginx_config.py <domain> <port>")
@@ -67,6 +99,10 @@ def main():
         print("Port must be a valid number.")
         sys.exit(1)
 
+    # Stop container running on the specified port
+    container_id = stop_container_on_port(port)
+
+    # Generate Nginx configuration
     nginx_config = generate_nginx_config(domain, port)
     save_nginx_config(nginx_config, domain)
 
@@ -94,6 +130,9 @@ def main():
     except subprocess.CalledProcessError as e:
         print(f"Nginx configuration error: {e}")
         sys.exit(1)
+
+    # Restart the container after Nginx setup
+    restart_container(container_id)
 
 if __name__ == "__main__":
     main()
