@@ -96,3 +96,6 @@ jobs:
 
             # Verify if containers are running
             sudo docker ps
+
+
+            

@@ -104,7 +104,7 @@ def main():
         print(f"Error restarting Nginx: {e}")
     
     # Set up SSL using Certbot
-    setup_ssl(domain)
+    # setup_ssl(domain)
 
 if __name__ == "__main__":
     main()
