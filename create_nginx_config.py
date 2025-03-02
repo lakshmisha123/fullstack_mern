@@ -5,19 +5,20 @@ import subprocess
 def install_nginx():
     """Check if Nginx is installed, if not, install it."""
     try:
-        subprocess.run(["nginx", "-v"], capture_output=True, text=True, check=True)
-        print("✅ Nginx is already installed.")
-    except subprocess.CalledProcessError:
-        print("⚠️ Nginx not found. Installing...")
-        try:
+        # Check if nginx is installed using dpkg
+        result = subprocess.run(["dpkg", "-l", "nginx"], capture_output=True, text=True)
+        if "no packages found" in result.stdout.lower() or result.returncode != 0:
+            print("⚠️ Nginx not found. Installing...")
             subprocess.run(["sudo", "apt", "update"], check=True)
             subprocess.run(["sudo", "apt", "install", "-y", "nginx"], check=True)
             subprocess.run(["sudo", "systemctl", "enable", "nginx"], check=True)
             subprocess.run(["sudo", "systemctl", "start", "nginx"], check=True)
             print("✅ Nginx installed and started successfully.")
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to install Nginx: {e}")
-            sys.exit(1)
+        else:
+            print("✅ Nginx is already installed.")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to install Nginx: {e}")
+        sys.exit(1)
 
 def generate_nginx_config(domain, port):
     """Generate an Nginx configuration file for the given domain and port."""
