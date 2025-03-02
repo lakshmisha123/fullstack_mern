@@ -3,6 +3,7 @@ import os
 import subprocess
 
 def generate_nginx_config(domain, port):
+    """Generate an Nginx configuration file for the given domain and port."""
     www_domain = f"www.{domain}"
     
     config = f"""
@@ -23,8 +24,24 @@ def generate_nginx_config(domain, port):
     """
     return config
 
+def ensure_directory_exists(directory):
+    """Ensure that the given directory exists."""
+    if not os.path.exists(directory):
+        try:
+            os.makedirs(directory)
+            print(f"Created directory: {directory}")
+        except PermissionError:
+            print(f"Permission denied: Cannot create {directory}. Run with sudo.")
+            sys.exit(1)
+
 def save_nginx_config(config, domain):
+    """Save the Nginx configuration file to /etc/nginx/sites-available/."""
     file_path = f"/etc/nginx/sites-available/{domain}"
+    
+    ensure_directory_exists("/etc/nginx/sites-available")
+    ensure_directory_exists("/etc/nginx/sites-enabled")
+    ensure_directory_exists("/etc/nginx/ssl/bot")  # Ensuring SSL directory exists
+
     try:
         with open(file_path, 'w') as file:
             file.write(config)
@@ -59,8 +76,8 @@ def stop_container_on_port(port):
     try:
         # Find container using the given port
         result = subprocess.run(
-            f"sudo docker ps --format '{{{{.ID}}}}' --filter 'publish={port}'",
-            shell=True, capture_output=True, text=True, check=True
+            ["sudo", "docker", "ps", "--format", "{{.ID}}", "--filter", f"publish={port}"],
+            capture_output=True, text=True, check=True
         )
         container_id = result.stdout.strip()
 
@@ -87,6 +104,7 @@ def restart_container(container_id):
             print(f"Error restarting container: {e}")
 
 def main():
+    """Main function to configure Nginx and restart necessary services."""
     if len(sys.argv) != 3:
         print("Usage: python3 create_nginx_config.py <domain> <port>")
         sys.exit(1)
@@ -111,9 +129,8 @@ def main():
         remove_default_nginx()
 
         # Create symlink for the new site
-        subprocess.run(['sudo', 'ln', '-sf', 
-                        f"/etc/nginx/sites-available/{domain}", 
-                        f"/etc/nginx/sites-enabled/{domain}"], check=True)
+        symlink_path = f"/etc/nginx/sites-enabled/{domain}"
+        subprocess.run(['sudo', 'ln', '-sf', f"/etc/nginx/sites-available/{domain}", symlink_path], check=True)
         print(f"Site {domain} enabled.")
     except subprocess.CalledProcessError as e:
         print(f"Error enabling site: {e}")
