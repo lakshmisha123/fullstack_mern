@@ -74,7 +74,7 @@ jobs:
             # Check if the directory exists
             if [ ! -d "$REPO_NAME" ]; then
               echo "Repository not found, cloning..."
-              git clone https://github.com/${{ github.repository }}  # Clone the repo (if it doesn't exist)
+              git clone https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }}.git
               cd $REPO_NAME  # Change to the cloned repo directory
             else
               echo "Repository already exists, pulling latest changes..."
