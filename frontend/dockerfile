@@ -22,7 +22,7 @@ ARG PORT
 
 # Set environment variables from arguments
 ENV MONGO_URI=$MONGO_URI
-env PORT=$PORT
+ENV PORT=$PORT
 
 # Expose the port the app will run on (use ENV variable)
 EXPOSE $PORT
